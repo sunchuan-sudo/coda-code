@@ -208,3 +208,6 @@ __marimo__/
 
 # CoDA Code
 .coda
+
+# Claude Code
+.claude
