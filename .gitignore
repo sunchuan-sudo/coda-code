@@ -207,7 +207,7 @@ marimo/_lsp/
 __marimo__/
 
 # CoDA Code
-.coda
+.coda/
 
 # Claude Code
-.claude
+.claude/
