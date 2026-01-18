@@ -62,7 +62,7 @@ def check_cli_dependencies() -> None:
         for pkg in missing:
             print(f"  - {pkg}")
         print("\nPlease install them with:")
-        print("  pip install coda-code")
+        print("  pip3 install coda-code")
         sys.exit(1)
 
 

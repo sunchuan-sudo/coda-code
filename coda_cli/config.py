@@ -477,6 +477,9 @@ def create_model(model_name_override: str | None = None) -> BaseChatModel:
 
         model_name = model_name_override
     # Use environment variable defaults, detect provider by API key priority
+    elif settings.has_deepseek:
+        provider = "deepseek"
+        model_name = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
     elif settings.has_openai:
         provider = "openai"
         model_name = os.environ.get("OPENAI_MODEL", "gpt-5-mini")
@@ -486,9 +489,6 @@ def create_model(model_name_override: str | None = None) -> BaseChatModel:
     elif settings.has_google:
         provider = "google"
         model_name = os.environ.get("GOOGLE_MODEL", "gemini-3-pro-preview")
-    elif settings.has_deepseek:
-        provider = "deepseek"
-        model_name = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
     else:
         console.print("[bold red]Error:[/bold red] No API key configured.")
         console.print("\nPlease set one of the following environment variables:")
@@ -502,20 +502,21 @@ def create_model(model_name_override: str | None = None) -> BaseChatModel:
         sys.exit(1)
 
     # Store model info in settings for display
-    settings.model_name = model_name
     settings.model_provider = provider
+    settings.model_name = model_name
 
     # Create and return the model
     if provider == "openai":
         from langchain_openai import ChatOpenAI
 
-        return ChatOpenAI(model=model_name)
+        return ChatOpenAI(model=model_name, timeout=120)
     if provider == "anthropic":
         from langchain_anthropic import ChatAnthropic
 
         return ChatAnthropic(
             model_name=model_name,
             max_tokens=20_000,  # type: ignore[arg-type]
+            timeout=120,
         )
     if provider == "google":
         from langchain_google_genai import ChatGoogleGenerativeAI
@@ -524,8 +525,9 @@ def create_model(model_name_override: str | None = None) -> BaseChatModel:
             model=model_name,
             temperature=0,
             max_tokens=None,
+            timeout=120,
         )
     if provider == "deepseek":
         from langchain_deepseek import ChatDeepSeek
 
-        return ChatDeepSeek(model=model_name)
+        return ChatDeepSeek(model=model_name, timeout=120)

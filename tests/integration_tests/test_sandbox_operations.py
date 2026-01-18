@@ -12,6 +12,7 @@ All tests run on a single sandbox instance (class-scoped fixture)
 to avoid the overhead of spinning up multiple containers.
 """
 
+import os
 from collections.abc import Iterator
 
 import pytest
@@ -26,6 +27,8 @@ class TestSandboxOperations:
     @pytest.fixture(scope="class")
     def sandbox(self) -> Iterator[SandboxBackendProtocol]:
         """Provide a single sandbox instance for all tests."""
+        if not os.environ.get("RUNLOOP_API_KEY"):
+            pytest.skip("RUNLOOP_API_KEY environment variable not set")
         with create_sandbox("runloop") as sandbox:
             yield sandbox
 

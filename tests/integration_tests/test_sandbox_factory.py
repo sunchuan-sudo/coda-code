@@ -7,6 +7,7 @@ Set REUSE_SANDBOX=1 environment variable to reuse sandboxes across tests within
 a class. Otherwise, a fresh sandbox is created for each test method.
 """
 
+import os
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 
@@ -298,6 +299,8 @@ class TestRunLoopIntegration(BaseSandboxIntegrationTest):
     @pytest.fixture(scope="class")
     def sandbox(self) -> Iterator[BaseSandbox]:
         """Provide a RunLoop sandbox instance."""
+        if not os.environ.get("RUNLOOP_API_KEY"):
+            pytest.skip("RUNLOOP_API_KEY environment variable not set")
         with create_sandbox("runloop") as sandbox:
             yield sandbox
 
@@ -308,6 +311,8 @@ class TestDaytonaIntegration(BaseSandboxIntegrationTest):
     @pytest.fixture(scope="class")
     def sandbox(self) -> Iterator[BaseSandbox]:
         """Provide a Daytona sandbox instance."""
+        if not os.environ.get("DAYTONA_API_KEY"):
+            pytest.skip("DAYTONA_API_KEY environment variable not set")
         with create_sandbox("daytona") as sandbox:
             yield sandbox
 
@@ -318,5 +323,7 @@ class TestModalIntegration(BaseSandboxIntegrationTest):
     @pytest.fixture(scope="class")
     def sandbox(self) -> Iterator[BaseSandbox]:
         """Provide a Modal sandbox instance."""
+        if not (os.environ.get("MODAL_TOKEN_ID") and os.environ.get("MODAL_TOKEN_SECRET")):
+            pytest.skip("MODAL_TOKEN_ID and MODAL_TOKEN_SECRET environment variables not set")
         with create_sandbox("modal") as sandbox:
             yield sandbox

@@ -17,7 +17,8 @@ from prompt_toolkit.completion import (
 from prompt_toolkit.document import Document
 from prompt_toolkit.enums import EditingMode
 from prompt_toolkit.formatted_text import HTML
-from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings
+from prompt_toolkit.key_binding.bindings.emacs import load_emacs_bindings
 
 from .config import COLORS, COMMANDS, SessionState, console
 from .image_utils import ImageData, get_clipboard_image
@@ -229,10 +230,11 @@ def create_prompt_session(
     if "EDITOR" not in os.environ:
         os.environ["EDITOR"] = "nano"
 
-    # Create key bindings
-    kb = KeyBindings()
+    # Load Emacs bindings and create custom bindings
+    emacs_bindings = load_emacs_bindings()
+    custom_kb = KeyBindings()
 
-    @kb.add("c-c")
+    @custom_kb.add("c-c")
     def _(event) -> None:
         """Require double Ctrl+C within a short window to exit."""
         app = event.app
@@ -271,7 +273,7 @@ def create_prompt_session(
         app.invalidate()
 
     # Bind Ctrl+T to toggle auto-approve
-    @kb.add("c-t")
+    @custom_kb.add("c-t")
     def _(event) -> None:
         """Toggle auto-approve mode."""
         session_state.toggle_auto_approve()
@@ -301,20 +303,50 @@ def create_prompt_session(
                 if clipboard_data and clipboard_data.text:
                     event.current_buffer.insert_text(clipboard_data.text)
 
-        @kb.add(Keys.BracketedPaste)
+        @custom_kb.add(Keys.BracketedPaste)
         def _(event) -> None:
             """Handle bracketed paste (Cmd+V on macOS) - check for images first."""
             # Bracketed paste provides the pasted text in event.data
             pasted_text = event.data if hasattr(event, "data") else ""
             _handle_paste_with_image_check(event, pasted_text)
 
-        @kb.add("c-v")
+        @custom_kb.add("c-v")
         def _(event) -> None:
             """Handle Ctrl+V paste - check for images first."""
             _handle_paste_with_image_check(event)
 
+    # Bind Ctrl+A to move to beginning of line (standard Emacs binding)
+    @custom_kb.add("c-a")
+    def _(event) -> None:
+        """Move to beginning of line."""
+        event.current_buffer.cursor_position = 0
+
+    # Bind Ctrl+B to move backward one character (standard Emacs binding)
+    @custom_kb.add("c-b")
+    def _(event) -> None:
+        """Move backward one character."""
+        buffer = event.current_buffer
+        if buffer.cursor_position > 0:
+            buffer.cursor_position -= 1
+
+    # Bind Ctrl+F to move forward one character (standard Emacs binding)
+    @custom_kb.add("c-f")
+    def _(event) -> None:
+        """Move forward one character."""
+        buffer = event.current_buffer
+        if buffer.cursor_position < len(buffer.text):
+            buffer.cursor_position += 1
+
+    # Bind Ctrl+H to kill previous character (backspace, standard Emacs binding)
+    @custom_kb.add("c-h")
+    def _(event) -> None:
+        """Kill previous character (backspace)."""
+        buffer = event.current_buffer
+        if buffer.cursor_position > 0:
+            buffer.delete_before_cursor(count=1)
+
     # Bind regular Enter to submit (intuitive behavior)
-    @kb.add("enter")
+    @custom_kb.add("enter")
     def _(event) -> None:
         """Enter submits the input, unless completion menu is active."""
         buffer = event.current_buffer
@@ -343,19 +375,13 @@ def create_prompt_session(
             # If empty, do nothing (don't submit)
 
     # Alt+Enter for newlines (press ESC then Enter, or Option+Enter on Mac)
-    @kb.add("escape", "enter")
+    @custom_kb.add("escape", "enter")
     def _(event) -> None:
         """Alt+Enter inserts a newline for multi-line input."""
         event.current_buffer.insert_text("\n")
 
-    # Ctrl+E to open in external editor
-    @kb.add("c-e")
-    def _(event) -> None:
-        """Open the current input in an external editor (nano by default)."""
-        event.current_buffer.open_in_editor()
-
     # Backspace handler to retrigger completions and delete image tags as units
-    @kb.add("backspace")
+    @custom_kb.add("backspace")
     def _(event) -> None:
         """Handle backspace: delete image tags as single unit, retrigger completion."""
         buffer = event.current_buffer
@@ -405,11 +431,14 @@ def create_prompt_session(
     # Create session reference dict for toolbar to access session
     session_ref = {}
 
+    # Merge Emacs bindings with custom bindings
+    merged_bindings = merge_key_bindings([emacs_bindings, custom_kb])
+    
     # Create the session
     session = PromptSession(
         message=HTML(f'<style fg="{COLORS["user"]}">></style> '),
         multiline=True,  # Keep multiline support but Enter submits
-        key_bindings=kb,
+        key_bindings=merged_bindings,
         completer=merge_completers([CommandCompleter(), FilePathCompleter()]),
         editing_mode=EditingMode.EMACS,
         complete_while_typing=True,  # Show completions as you type

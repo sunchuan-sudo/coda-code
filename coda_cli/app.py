@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import shlex
 import subprocess
 import uuid
 from pathlib import Path
@@ -94,7 +95,7 @@ class CoDACodeApp(App):
     BINDINGS: ClassVar[list[BindingType]] = [
         Binding("escape", "interrupt", "Interrupt", show=False, priority=True),
         Binding("ctrl+c", "quit_or_interrupt", "Quit/Interrupt", show=False),
-        Binding("ctrl+d", "quit_app", "Quit", show=False, priority=True),
+#        Binding("ctrl+d", "quit_app", "Quit", show=False, priority=True),
         Binding("ctrl+t", "toggle_auto_approve", "Toggle Auto-Approve", show=False),
         Binding(
             "shift+tab", "toggle_auto_approve", "Toggle Auto-Approve", show=False, priority=True
@@ -331,6 +332,59 @@ class CoDACodeApp(App):
         if self._chat_input:
             self.call_after_refresh(self._chat_input.focus_input)
 
+    def _parse_cd_command(self, command: str) -> str | None:
+        """Parse a cd command and return the new directory path.
+        
+        Args:
+            command: The bash command string
+            
+        Returns:
+            New directory path if command is cd, None otherwise
+        """
+        # Split command into parts
+        try:
+            parts = shlex.split(command.strip())
+        except ValueError:
+            # Invalid quoting, not a cd command we can parse
+            return None
+            
+        if not parts:
+            return None
+            
+        # Check if first part is cd
+        if parts[0] != "cd":
+            return None
+            
+        # Handle cd without arguments (go to home)
+        if len(parts) == 1:
+            return str(Path.home())
+            
+        # Get the directory argument
+        dir_arg = parts[1]
+        
+        # Handle special cases
+        if dir_arg == "~":
+            return str(Path.home())
+        elif dir_arg == "-":
+            # cd - should go to previous directory, but we don't track that
+            # For now, return None to indicate we can't handle it
+            return None
+        elif dir_arg.startswith("~/"):
+            # Expand ~/path
+            return str(Path.home() / dir_arg[2:])
+        
+        # Convert to absolute path relative to current cwd
+        dir_path = Path(dir_arg)
+        if not dir_path.is_absolute():
+            dir_path = Path(self._cwd) / dir_path
+        
+        # Resolve any .. or . components
+        try:
+            return str(dir_path.resolve())
+        except (OSError, RuntimeError):
+            # If resolution fails, return the path as-is
+            return str(dir_path)
+
     async def _handle_bash_command(self, command: str) -> None:
         """Handle a bash command (! prefix).
 
@@ -340,6 +394,9 @@ class CoDACodeApp(App):
         # Mount user message showing the bash command
         await self._mount_message(UserMessage(f"!{command}"))
 
+        # Check if this is a cd command
+        new_cwd = self._parse_cd_command(command)
+        
         # Execute the bash command (shell=True is intentional for user-requested bash)
         try:
             result = await asyncio.to_thread(  # noqa: S604
@@ -368,6 +425,18 @@ class CoDACodeApp(App):
 
             # Scroll to show the output
             self._scroll_chat_to_bottom()
+
+            # Update CWD if this was a successful cd command
+            if new_cwd and result.returncode == 0:
+                self._cwd = new_cwd
+                if self._status_bar:
+                    self._status_bar.cwd = new_cwd
+            
+            # Refresh git branch after any bash command
+            # This handles git operations, scripts that change branches, etc.
+            if self._status_bar:
+                # Use call_later to avoid blocking UI thread
+                self.call_later(self._status_bar.refresh_git_branch)
 
         except subprocess.TimeoutExpired:
             await self._mount_message(ErrorMessage("Command timed out (60s limit)"))

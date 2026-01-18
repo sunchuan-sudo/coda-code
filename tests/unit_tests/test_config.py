@@ -107,3 +107,18 @@ class TestProjectAgentMdFinding:
 
         result = _find_project_agent_md(project_root)
         assert result == []
+
+
+import os
+from unittest.mock import patch
+from coda_cli.config import create_model
+
+
+def test_create_model_deepseek():
+    """Test create_model() with DeepSeek provider."""
+    with patch.dict(os.environ, {"DEEPSEEK_API_KEY": "test-key"}):
+        # This should create a DeepSeek model without ImportError
+        model = create_model("deepseek-chat")
+        assert model is not None
+        # Verify it's a DeepSeek model (check class name or attributes)
+        assert "DeepSeek" in str(type(model))

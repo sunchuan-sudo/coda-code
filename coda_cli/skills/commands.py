@@ -300,21 +300,14 @@ This skill directory can include supporting files referenced in the instructions
     skill_md = skill_dir / "SKILL.md"
     skill_md.write_text(template)
 
-    console.print(f"✓ Skill '{skill_name}' created successfully!", style=COLORS["primary"])
+    console.print(f"Skill '{skill_name}' created successfully!", style=COLORS["primary"])
     console.print(f"Location: {skill_dir}\n", style=COLORS["dim"])
     console.print(
         "[dim]Edit the SKILL.md file to customize:\n"
-        "  1. Update the description in YAML frontmatter\n"
-        "  2. Fill in the instructions and examples\n"
-        "  3. Add any supporting files (scripts, configs, etc.)\n"
-        "\n"
-        f"  nano {skill_md}\n"
-        "\n"
-        "💡 See examples/skills/ in the deepagents repo for example skills:\n"
-        "   - web-research: Structured research workflow\n"
-        "   - langgraph-docs: LangGraph documentation lookup\n"
-        "\n"
-        "   Copy an example: cp -r examples/skills/web-research ~/.coda/agent/skills/\n",
+        "1. Update the description in YAML frontmatter\n"
+        "2. Fill in the instructions and examples\n"
+        "3. Add any supporting files (scripts, configs, etc.)\n"
+        "\n",
         style=COLORS["dim"],
     )
 

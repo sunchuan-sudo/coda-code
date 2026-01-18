@@ -5,7 +5,7 @@ try:
 except ImportError:
     msg = (
         "runloop_api_client package is required for RunloopBackend. "
-        "Install with `pip install runloop_api_client`."
+        "Install with `pip3 install runloop_api_client`."
     )
     raise ImportError(msg)
 

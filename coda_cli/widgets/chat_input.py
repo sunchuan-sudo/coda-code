@@ -87,13 +87,19 @@ class ChatTextArea(TextArea):
             show=False,
             priority=True,
         ),
-        Binding(
-            "ctrl+a",
-            "select_all_text",
-            "Select All",
-            show=False,
-            priority=True,
-        ),
+        # Emacs-style navigation bindings
+        Binding("ctrl+a", "move_to_line_start", "Start of Line", show=False, priority=True),
+        Binding("ctrl+e", "move_to_line_end", "End of Line", show=False, priority=True),
+        Binding("ctrl+f", "move_forward", "Forward Char", show=False, priority=True),
+        Binding("ctrl+b", "move_backward", "Backward Char", show=False, priority=True),
+        # Emacs-style editing bindings
+        Binding("ctrl+d", "delete_forward", "Delete Forward", show=False, priority=True),
+        Binding("ctrl+h", "delete_backward", "Delete Backward", show=False, priority=True),
+        Binding("ctrl+k", "kill_to_line_end", "Kill to Line End", show=False, priority=True),
+        Binding("ctrl+w", "kill_previous_word", "Kill Previous Word", show=False, priority=True),
+        Binding("ctrl+y", "yank", "Yank", show=False, priority=True),
+        Binding("ctrl+_,ctrl+/", "undo", "Undo", show=False, priority=True),
+        Binding("ctrl+shift+_,ctrl+shift+/", "redo", "Redo", show=False, priority=True),
         # Mac Cmd+Z/Cmd+Shift+Z for undo/redo (in addition to Ctrl+Z/Y)
         Binding("cmd+z,super+z", "undo", "Undo", show=False, priority=True),
         Binding("cmd+shift+z,super+shift+z", "redo", "Redo", show=False, priority=True),
@@ -126,6 +132,7 @@ class ChatTextArea(TextArea):
         self._navigating_history = False
         self._completion_active = False
         self._app_has_focus = True
+        self._killed_text = ""  # For Emacs kill/yank operations
 
     def set_app_focus(self, *, has_focus: bool) -> None:
         """Set whether the app should show the cursor as active.
@@ -155,6 +162,144 @@ class ChatTextArea(TextArea):
         end_row = len(lines) - 1
         end_col = len(lines[end_row])
         self.selection = ((0, 0), (end_row, end_col))
+
+    def action_move_to_line_start(self) -> None:
+        """Move cursor to start of current line (Emacs Ctrl+A)."""
+        row, col = self.cursor_location
+        self.move_cursor((row, 0))
+
+    def action_move_to_line_end(self) -> None:
+        """Move cursor to end of current line (Emacs Ctrl+E)."""
+        row, col = self.cursor_location
+        lines = self.text.split("\n")
+        if row < len(lines):
+            self.move_cursor((row, len(lines[row])))
+
+    def action_move_forward(self) -> None:
+        """Move cursor forward one character (Emacs Ctrl+F)."""
+        row, col = self.cursor_location
+        lines = self.text.split("\n")
+        if row < len(lines):
+            if col < len(lines[row]):
+                self.move_cursor((row, col + 1))
+            elif row < len(lines) - 1:
+                # Move to next line
+                self.move_cursor((row + 1, 0))
+
+    def action_move_backward(self) -> None:
+        """Move cursor backward one character (Emacs Ctrl+B)."""
+        row, col = self.cursor_location
+        if col > 0:
+            self.move_cursor((row, col - 1))
+        elif row > 0:
+            # Move to end of previous line
+            lines = self.text.split("\n")
+            self.move_cursor((row - 1, len(lines[row - 1])))
+
+    def action_delete_forward(self) -> None:
+        """Delete character under cursor (Emacs Ctrl+D)."""
+        row, col = self.cursor_location
+        lines = self.text.split("\n")
+        if row < len(lines) and col < len(lines[row]):
+            # Delete character at cursor
+            current_line = lines[row]
+            new_line = current_line[:col] + current_line[col + 1:]
+            lines[row] = new_line
+            self.text = "\n".join(lines)
+            # Cursor stays at same position
+            self.move_cursor((row, col))
+
+    def action_delete_backward(self) -> None:
+        """Delete character before cursor (Emacs Ctrl+H)."""
+        row, col = self.cursor_location
+        if col > 0:
+            lines = self.text.split("\n")
+            if row < len(lines):
+                current_line = lines[row]
+                new_line = current_line[:col - 1] + current_line[col:]
+                lines[row] = new_line
+                self.text = "\n".join(lines)
+                # Move cursor back one position
+                self.move_cursor((row, col - 1))
+        elif row > 0:
+            # At beginning of line, merge with previous line
+            lines = self.text.split("\n")
+            if row < len(lines):
+                prev_line = lines[row - 1]
+                current_line = lines[row]
+                # Merge previous line with current line
+                lines[row - 1] = prev_line + current_line
+                # Remove current line
+                del lines[row]
+                self.text = "\n".join(lines)
+                # Move cursor to end of previous line
+                self.move_cursor((row - 1, len(prev_line)))
+
+    def action_kill_to_line_end(self) -> None:
+        """Delete from cursor to end of line (Emacs Ctrl+K)."""
+        row, col = self.cursor_location
+        lines = self.text.split("\n")
+        if row < len(lines):
+            current_line = lines[row]
+            if col < len(current_line):
+                # Store killed text for yank
+                self._killed_text = current_line[col:]
+                # Truncate line at cursor
+                lines[row] = current_line[:col]
+                self.text = "\n".join(lines)
+                # Cursor stays at same position
+                self.move_cursor((row, col))
+
+    def action_kill_previous_word(self) -> None:
+        """Delete previous word (Emacs Ctrl+W)."""
+        row, col = self.cursor_location
+        lines = self.text.split("\n")
+        if row < len(lines):
+            current_line = lines[row]
+            if col > 0:
+                # Find start of previous word
+                text_before = current_line[:col]
+                # Find last word boundary
+                import re
+                # Match word characters or whitespace
+                matches = list(re.finditer(r'\w+|\s+', text_before))
+                if matches:
+                    last_match = matches[-1]
+                    if last_match.group().isspace():
+                        # If last match is whitespace, check if there's a word before it
+                        if len(matches) > 1:
+                            last_match = matches[-2]
+                            start_pos = last_match.start()
+                        else:
+                            # Only whitespace before cursor
+                            start_pos = 0
+                    else:
+                        start_pos = last_match.start()
+                else:
+                    start_pos = 0
+                
+                # Store killed text for yank
+                self._killed_text = current_line[start_pos:col]
+                # Delete from start_pos to col
+                new_line = current_line[:start_pos] + current_line[col:]
+                lines[row] = new_line
+                self.text = "\n".join(lines)
+                # Move cursor to start_pos
+                self.move_cursor((row, start_pos))
+
+    def action_yank(self) -> None:
+        """Paste killed text (Emacs Ctrl+Y)."""
+        if hasattr(self, '_killed_text') and self._killed_text:
+            row, col = self.cursor_location
+            lines = self.text.split("\n")
+            if row < len(lines):
+                current_line = lines[row]
+                # Insert killed text at cursor
+                new_line = current_line[:col] + self._killed_text + current_line[col:]
+                lines[row] = new_line
+                self.text = "\n".join(lines)
+                # Move cursor past inserted text
+                self.move_cursor((row, col + len(self._killed_text)))
 
     async def _on_key(self, event: events.Key) -> None:
         """Handle key events."""
