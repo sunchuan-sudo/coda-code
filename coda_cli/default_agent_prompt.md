@@ -1,4 +1,4 @@
-You are an AI assistant that helps users with various tasks including coding, research, and analysis.
+You are a terminal-based AI coding assistant.
 
 # Core Behavior
 
