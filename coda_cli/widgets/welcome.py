@@ -24,7 +24,8 @@ class WelcomeBanner(Static):
     def __init__(self, **kwargs: Any) -> None:
         """Initialize the welcome banner."""
         # Use the same green color as the original UI (#10b981)
-        banner_text = f"[bold #10b981]{CODA_CODE_ASCII}[/bold #10b981]"
+        # banner_text = f"[bold #10b981]{CODA_CODE_ASCII}[/bold #10b981]"
+        banner_text = f"[bold #f7f7f7]{CODA_CODE_ASCII}[/bold #f7f7f7]"
         banner_text += "\n"
         banner_text += f"[dim]󰪩 {settings.model_provider}:{settings.model_name} •  {settings.project_root}[/dim]\n"
         banner_text += "[dim]Enter send • Ctrl+J newline • @ files • / commands[/dim]"
